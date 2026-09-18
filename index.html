@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriSmart - AI Farming Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100 transition-colors duration-300 font-sans antialiased overflow-hidden" x-data="dashboardData()">
+
+    <!-- App Container -->
+    <div class="flex h-screen w-full">
+        
+        <!-- Sidebar -->
+        <aside class="w-64 flex-shrink-0 glass-panel border-r border-gray-200 dark:border-dark-border flex flex-col transition-all duration-300 z-20 absolute md:relative h-full"
+               :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'">
+            
+            <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-dark-border">
+                <i data-lucide="leaf" class="text-primary-500 mr-2 h-6 w-6"></i>
+                <span class="text-xl font-bold text-gray-800 dark:text-white">AgriSmart</span>
+                <button @click="sidebarOpen = false" class="ml-auto md:hidden text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+            </div>
+
+            <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+                <template x-for="item in navItems" :key="item.id">
+                    <button @click="activeTab = item.id; if(window.innerWidth < 768) sidebarOpen = false" 
+                            class="w-full flex items-center px-3 py-2.5 rounded-lg transition-colors duration-200"
+                            :class="activeTab === item.id ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'">
+                        <i :data-lucide="item.icon" class="h-5 w-5 mr-3" :class="activeTab === item.id ? 'text-primary-500' : ''"></i>
+                        <span x-text="item.label"></span>
+                    </button>
+                </template>
+            </nav>
+
+            <div class="p-4 border-t border-gray-200 dark:border-dark-border">
+                <button @click="toggleTheme()" class="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <i data-lucide="sun" x-show="!isDark" class="h-5 w-5 text-amber-500"></i>
+                    <i data-lucide="moon" x-show="isDark" class="h-5 w-5 text-indigo-400"></i>
+                    <span x-text="isDark ? 'Light Mode' : 'Dark Mode'"></span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+            <!-- Header -->
+            <header class="h-16 glass-panel border-b border-gray-200 dark:border-dark-border flex items-center justify-between px-4 sm:px-6 z-10">
+                <div class="flex items-center">
+                    <button @click="sidebarOpen = true" class="mr-4 md:hidden text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                        <i data-lucide="menu" class="h-6 w-6"></i>
+                    </button>
+                    <h1 class="text-xl font-semibold capitalize" x-text="activeTab.replace('-', ' ')">Dashboard</h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Alerts Dropdown Trigger -->
+                    <div class="relative">
+                        <button @click="alertsOpen = !alertsOpen" @click.away="alertsOpen = false" class="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <i data-lucide="bell" class="h-5 w-5"></i>
+                            <span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
+                        </button>
+                        
+                        <!-- Alerts Dropdown -->
+                        <div x-show="alertsOpen" x-transition.opacity.duration.200ms style="display: none;" class="absolute right-0 mt-2 w-80 glass-panel rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-50">
+                            <div class="p-3 border-b border-gray-200 dark:border-dark-border font-medium text-sm flex justify-between items-center bg-white dark:bg-dark-card">
+                                Notifications
+                                <span class="bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full dark:bg-primary-900 dark:text-primary-300">3 New</span>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto bg-white dark:bg-dark-card">
+                                <template x-for="alert in alerts" :key="alert.id">
+                                    <div class="p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer flex gap-3">
+                                        <div class="mt-0.5 rounded-full p-1 h-fit" :class="alert.type === 'warning' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' : (alert.type === 'danger' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-primary-100 text-primary-600 dark:bg-primary-900/30')">
+                                            <i :data-lucide="alert.icon" class="h-4 w-4"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium" x-text="alert.title"></p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5" x-text="alert.message"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-primary-500 to-teal-400 flex items-center justify-center text-white font-medium shadow-sm ring-2 ring-white dark:ring-gray-800">
+                        F
+                    </div>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Area -->
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
+                
+                <!-- Overview Tab -->
+                <div x-show="activeTab === 'overview'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6">
+                    
+                    <!-- Top Widgets -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        
+                        <!-- Weather Widget -->
+                        <div class="glass-card rounded-2xl p-5 border border-gray-200 dark:border-dark-border relative overflow-hidden group">
+                            <div class="absolute -right-6 -top-6 text-amber-400 opacity-20 group-hover:opacity-30 group-hover:scale-110 transition-all duration-500">
+                                <i data-lucide="sun" class="w-32 h-32"></i>
+                            </div>
+                            <div class="relative z-10">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Weather</p>
+                                        <h3 class="text-2xl font-bold mt-1">28°C</h3>
+                                    </div>
+                                    <div class="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-500">
+                                        <i data-lucide="cloud-sun" class="h-5 w-5"></i>
+                                    </div>
+                                </div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                                    <i data-lucide="droplets" class="h-3 w-3 mr-1 text-blue-400"></i> 45% Humidity
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Clear sky, good for spraying.</p>
+                            </div>
+                        </div>
+
+                        <!-- Soil Moisture -->
+                        <div class="glass-card rounded-2xl p-5 border border-gray-200 dark:border-dark-border">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Soil Moisture</p>
+                                    <h3 class="text-2xl font-bold mt-1 text-blue-600 dark:text-blue-400">32%</h3>
+                                </div>
+                                <div class="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-500">
+                                    <i data-lucide="waves" class="h-5 w-5"></i>
+                                </div>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                                <div class="bg-blue-500 h-2 rounded-full" style="width: 32%"></div>
+                            </div>
+                            <p class="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center">
+                                <i data-lucide="alert-triangle" class="h-3 w-3 mr-1"></i> Below optimal (40%)
+                            </p>
+                        </div>
+                        
+                        <!-- Crop Health -->
+                        <div class="glass-card rounded-2xl p-5 border border-gray-200 dark:border-dark-border">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Crop Health Index</p>
+                                    <h3 class="text-2xl font-bold mt-1 text-primary-600 dark:text-primary-400">94/100</h3>
+                                </div>
+                                <div class="p-2 bg-primary-50 dark:bg-primary-900/20 rounded-lg text-primary-500">
+                                    <i data-lucide="activity" class="h-5 w-5"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm text-primary-600 dark:text-primary-400 mt-2">
+                                <i data-lucide="trending-up" class="h-4 w-4 mr-1"></i>
+                                <span>+2.4% from last week</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Market Trend -->
+                        <div class="glass-card rounded-2xl p-5 border border-gray-200 dark:border-dark-border">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Wheat Price</p>
+                                    <h3 class="text-2xl font-bold mt-1">$240<span class="text-sm font-normal text-gray-500">/ton</span></h3>
+                                </div>
+                                <div class="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-500">
+                                    <i data-lucide="bar-chart-2" class="h-5 w-5"></i>
+                                </div>
+                            </div>
+                            <div class="h-10 w-full relative">
+                                <canvas id="miniMarketChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Panels Row 1 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Location/Map Overview -->
+                        <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border lg:col-span-2 flex flex-col">
+                            <div class="p-5 border-b border-gray-200 dark:border-dark-border flex justify-between items-center">
+                                <h3 class="font-semibold text-lg flex items-center">
+                                    <i data-lucide="map-pin" class="h-5 w-5 mr-2 text-primary-500"></i>
+                                    Farm Map Overview
+                                </h3>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 text-xs font-medium bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg">Sectors</button>
+                                    <button class="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg">Sensors</button>
+                                </div>
+                            </div>
+                            <div class="flex-1 p-2 relative min-h-[300px] bg-gray-100 dark:bg-gray-900/50 rounded-b-2xl overflow-hidden group">
+                                <!-- Mock Map Background -->
+                                <div class="absolute inset-0 opacity-40 dark:opacity-20" style="background-image: radial-gradient(#22c55e 1px, transparent 1px); background-size: 20px 20px;"></div>
+                                
+                                <!-- Field Sectors -->
+                                <div class="absolute top-10 left-10 w-40 h-32 border-2 border-primary-500 bg-primary-500/10 rounded-lg flex items-center justify-center cursor-pointer hover:bg-primary-500/20 transition group-hover:scale-105 duration-300">
+                                    <div class="text-center">
+                                        <p class="font-bold text-primary-700 dark:text-primary-400">Sector A</p>
+                                        <p class="text-xs font-medium">Wheat • Good</p>
+                                    </div>
+                                </div>
+                                <div class="absolute bottom-10 right-20 w-48 h-40 border-2 border-blue-500 bg-blue-500/10 rounded-lg flex items-center justify-center cursor-pointer hover:bg-blue-500/20 transition group-hover:scale-105 duration-300">
+                                    <div class="text-center">
+                                        <p class="font-bold text-blue-700 dark:text-blue-400">Sector B</p>
+                                        <p class="text-xs font-medium">Corn • Irrigating...</p>
+                                    </div>
+                                </div>
+                                <div class="absolute top-20 right-10 w-32 h-32 border-2 border-amber-500 bg-amber-500/10 rounded-lg flex items-center justify-center cursor-pointer hover:bg-amber-500/20 transition group-hover:scale-105 duration-300">
+                                    <div class="text-center">
+                                        <p class="font-bold text-amber-700 dark:text-amber-400">Sector C</p>
+                                        <p class="text-xs font-medium">Soy • Warning</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Smart Irrigation Control -->
+                        <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border flex flex-col">
+                            <div class="p-5 border-b border-gray-200 dark:border-dark-border">
+                                <h3 class="font-semibold text-lg flex items-center">
+                                    <i data-lucide="droplets" class="h-5 w-5 mr-2 text-blue-500"></i>
+                                    Smart Irrigation
+                                </h3>
+                            </div>
+                            <div class="p-5 flex-1 flex flex-col">
+                                <div class="mb-6 flex justify-between items-center">
+                                    <span class="text-sm font-medium">Auto-Irrigation AI</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" value="" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-500"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="space-y-4 flex-1">
+                                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <div class="h-2 w-2 rounded-full bg-primary-500 mr-2"></div>
+                                            <span class="text-sm font-medium">Sector A</span>
+                                        </div>
+                                        <span class="text-xs text-gray-500">Scheduled: 18:00</span>
+                                    </div>
+                                    <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl flex items-center justify-between border border-blue-100 dark:border-blue-800">
+                                        <div class="flex items-center">
+                                            <div class="h-2 w-2 rounded-full bg-blue-500 mr-2 animate-pulse"></div>
+                                            <span class="text-sm font-medium text-blue-700 dark:text-blue-400">Sector B</span>
+                                        </div>
+                                        <span class="text-xs text-blue-600 dark:text-blue-400 font-medium">Watering now...</span>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <div class="h-2 w-2 rounded-full bg-gray-300 mr-2"></div>
+                                            <span class="text-sm font-medium">Sector C</span>
+                                        </div>
+                                        <span class="text-xs text-gray-500">Manual review</span>
+                                    </div>
+                                </div>
+                                
+                                <button class="mt-4 w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors">
+                                    Water All Sectors Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Recommendations Tab -->
+                <div x-show="activeTab === 'ai-crop'" style="display: none;" class="space-y-6">
+                    <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border p-6 lg:p-8">
+                        <div class="max-w-3xl mx-auto">
+                            <div class="text-center mb-8">
+                                <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-500 mb-4">
+                                    <i data-lucide="sprout" class="h-8 w-8"></i>
+                                </div>
+                                <h2 class="text-2xl font-bold mb-2">AI Crop Recommendation</h2>
+                                <p class="text-gray-500 dark:text-gray-400">Enter your soil and environmental parameters to get AI-driven suggestions for the best crops to plant this season.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Nitrogen (N)</label>
+                                    <input type="number" value="90" class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Phosphorus (P)</label>
+                                    <input type="number" value="42" class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Potassium (K)</label>
+                                    <input type="number" value="43" class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">pH Level</label>
+                                    <input type="number" step="0.1" value="6.5" class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow">
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button @click="analyzing = true; setTimeout(() => {analyzing = false; showResult = true}, 2000)" class="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium shadow-lg shadow-primary-500/30 transition-all flex items-center justify-center w-full md:w-auto mx-auto group">
+                                    <i data-lucide="sparkles" class="mr-2 h-5 w-5" :class="analyzing ? 'animate-spin' : 'group-hover:animate-pulse'"></i>
+                                    <span x-text="analyzing ? 'AI is Analyzing...' : 'Get Recommendations'"></span>
+                                </button>
+                            </div>
+
+                            <!-- Results Section -->
+                            <div x-show="showResult" style="display: none;" x-transition.duration.500ms class="mt-10 p-6 bg-gradient-to-br from-primary-50 to-teal-50 dark:from-primary-900/20 dark:to-teal-900/20 border border-primary-100 dark:border-primary-800/30 rounded-2xl">
+                                <h3 class="text-lg font-semibold mb-4 text-center">Top Recommendation</h3>
+                                <div class="flex flex-col md:flex-row items-center gap-6">
+                                    <div class="w-32 h-32 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center shadow-inner shrink-0 relative overflow-hidden">
+                                        <img src="https://images.unsplash.com/photo-1574323347407-28d1dd0793df?auto=format&fit=crop&w=200&q=80" alt="Rice" class="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-overlay">
+                                        <span class="text-2xl font-bold z-10 text-white">Rice</span>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-700 dark:text-gray-300 mb-2">Based on your high Nitrogen and humidity levels, <strong>Rice</strong> is highly recommended. It has an estimated yield probability of 92% for this soil profile.</p>
+                                        <div class="flex gap-2">
+                                            <span class="px-2 py-1 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-xs rounded-md">High Yield</span>
+                                            <span class="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs rounded-md">Needs Water</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Disease Detection Tab -->
+                <div x-show="activeTab === 'disease'" style="display: none;" class="space-y-6">
+                    <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border p-6 lg:p-8 flex flex-col lg:flex-row gap-8">
+                        
+                        <div class="flex-1">
+                            <h2 class="text-2xl font-bold mb-2">Plant Disease Detection</h2>
+                            <p class="text-gray-500 dark:text-gray-400 mb-6">Upload a photo of a sick plant leaf, and our computer vision model will diagnose the disease and suggest treatments.</p>
+                            
+                            <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-10 flex flex-col items-center justify-center text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group relative overflow-hidden" @click="scanning = true; setTimeout(() => {scanning = false}, 3000)">
+                                <!-- Scan effect -->
+                                <div x-show="scanning" class="absolute inset-0 bg-primary-500/10 z-0">
+                                    <div class="w-full h-1 bg-primary-500 shadow-[0_0_15px_rgba(34,197,94,0.5)] absolute top-0 animate-[scan_2s_ease-in-out_infinite]"></div>
+                                </div>
+
+                                <div class="h-16 w-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-primary-500 mb-4 group-hover:scale-110 transition-transform relative z-10">
+                                    <i data-lucide="upload-cloud" class="h-8 w-8"></i>
+                                </div>
+                                <h4 class="font-medium text-lg mb-1 relative z-10" x-text="scanning ? 'Analyzing leaf structure...' : 'Click to upload or drag & drop'"></h4>
+                                <p class="text-sm text-gray-500 relative z-10" x-show="!scanning">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                            </div>
+                        </div>
+
+                        <div class="w-full lg:w-96 bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
+                            <h3 class="font-semibold mb-4 border-b pb-2 dark:border-gray-700">Recent Scans</h3>
+                            <div class="space-y-4">
+                                <div class="flex gap-3 items-center">
+                                    <div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden shrink-0">
+                                        <img src="https://images.unsplash.com/photo-1530267981375-f0de737f150c?auto=format&fit=crop&w=100&q=80" alt="Leaf" class="w-full h-full object-cover">
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-red-600 dark:text-red-400">Tomato Early Blight</p>
+                                        <p class="text-xs text-gray-500">Scanned 2 hours ago</p>
+                                    </div>
+                                    <i data-lucide="chevron-right" class="h-4 w-4 text-gray-400 ml-auto"></i>
+                                </div>
+                                <div class="flex gap-3 items-center">
+                                    <div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden shrink-0">
+                                        <img src="https://images.unsplash.com/photo-1587334206584-81414436814c?auto=format&fit=crop&w=100&q=80" alt="Leaf" class="w-full h-full object-cover">
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-primary-600 dark:text-primary-400">Healthy Leaf</p>
+                                        <p class="text-xs text-gray-500">Scanned yesterday</p>
+                                    </div>
+                                    <i data-lucide="chevron-right" class="h-4 w-4 text-gray-400 ml-auto"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div x-show="activeTab === 'analytics'" style="display: none;" class="space-y-6">
+                    <h2 class="text-2xl font-bold mb-4">Crop Health & Analytics</h2>
+                    <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border p-5 relative">
+                        <!-- Chart Container -->
+                        <div class="h-80 w-full relative">
+                            <canvas id="mainAnalyticsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border p-5">
+                             <h3 class="font-medium mb-4">Yield Prediction</h3>
+                             <div class="h-64 w-full relative">
+                                <canvas id="yieldChart"></canvas>
+                             </div>
+                        </div>
+                        <div class="glass-card rounded-2xl border border-gray-200 dark:border-dark-border p-5">
+                             <h3 class="font-medium mb-4">Resource Usage</h3>
+                             <div class="h-64 w-full relative">
+                                <canvas id="resourceChart"></canvas>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Padding for floating button -->
+                <div class="h-24"></div>
+
+            </div>
+            
+            <!-- Voice Assistant Floating Button -->
+            <button class="absolute bottom-6 right-6 h-14 w-14 rounded-full bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/40 flex items-center justify-center z-50 transition-transform hover:scale-110 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-primary-500/50">
+                <div class="absolute inset-0 rounded-full border-2 border-white/20 animate-pulse-slow"></div>
+                <div class="absolute inset-[-8px] rounded-full border border-primary-500/30 animate-ping opacity-20 group-hover:opacity-100"></div>
+                <i data-lucide="mic" class="h-6 w-6 relative z-10"></i>
+            </button>
+
+        </main>
+    </div>
+
+    <!-- Init App -->
+    <script src="app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
