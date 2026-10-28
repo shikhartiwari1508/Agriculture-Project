@@ -67,7 +67,7 @@ The objective of this project is to practice frontend web development and build 
 
 ## 👨‍💻 Author
 
-**Mr. Shikhar Tiwari**
+**Shikhar Tiwari**
 
 - GitHub: [@shikhartiwari1508](https://github.com/shikhartiwari1508)
 - LinkedIn: [Shikhar Tiwari](https://linkedin.com/in/shikhar-tiwari-222007372)
